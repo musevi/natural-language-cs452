@@ -108,6 +108,11 @@ questions = [
     "Which students have unpaid invoices and how much is outstanding for each?",
     "Who is missing a phone number in their profile?",
     "What lessons in the last month were marked as no-show?",
+    "Which students have overlapping lessons?",
+    "For each teacher, list their top 2 students by number of completed lessons and the teacher's average duration for completed lessons.",
+    "Which students have packages that will expire within the next 7 days and also have unpaid invoices?",
+    "Which invoices have partial payments?",
+    "List students whose no-show rate is greater than 25%.",
 ]
 
 
