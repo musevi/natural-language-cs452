@@ -1,0 +1,69 @@
+{
+  "strategy": "single_domain_double_shot",
+  "prompt_prefix": "-- guitar teacher schema (SQLite-compatible)\n\nPRAGMA foreign_keys = ON;\n\ncreate table teacher (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  email TEXT NOT NULL UNIQUE,\n  phone TEXT\n);\n\ncreate table student (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  email TEXT NOT NULL UNIQUE,\n  phone TEXT,\n  date_of_birth DATE,\n  skill_level TEXT CHECK (skill_level IN ('beginner','intermediate','advanced')),\n  enrolled_at DATE NOT NULL DEFAULT (date('now'))\n);\n\ncreate table lesson (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  teacher_id INTEGER NOT NULL,\n  student_id INTEGER NOT NULL,\n  scheduled_at DATETIME NOT NULL,\n  duration_minutes INTEGER NOT NULL DEFAULT 60,\n  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','cancelled','no-show')),\n  notes TEXT,\n  location TEXT NOT NULL DEFAULT 'in-person' CHECK (location IN ('in-person','online')),\n  foreign key (teacher_id) references teacher(id),\n  foreign key (student_id) references student(id)\n);\n\ncreate table material (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  lesson_id INTEGER NOT NULL,\n  type TEXT NOT NULL CHECK (type IN ('song','technique','exercise','theory')),\n  title TEXT NOT NULL,\n  description TEXT,\n  homework INTEGER NOT NULL DEFAULT 0,\n  foreign key (lesson_id) references lesson(id)\n);\n\ncreate table package (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  lesson_count INTEGER NOT NULL,\n  price NUMERIC NOT NULL,\n  validity_days INTEGER NOT NULL\n);\n\ncreate table student_package (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  student_id INTEGER NOT NULL,\n  package_id INTEGER NOT NULL,\n  lessons_remaining INTEGER NOT NULL,\n  purchased_at DATE NOT NULL DEFAULT (date('now')),\n  expires_at DATE NOT NULL,\n  foreign key (student_id) references student(id),\n  foreign key (package_id) references package(id)\n);\n\ncreate table invoice (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  student_id INTEGER NOT NULL,\n  student_package_id INTEGER,\n  amount NUMERIC NOT NULL,\n  issued_at DATE NOT NULL DEFAULT (date('now')),\n  due_at DATE NOT NULL,\n  status TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid','paid','overdue')),\n  foreign key (student_id) references student(id),\n  foreign key (student_package_id) references student_package(id)\n);\n\ncreate table payment (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  invoice_id INTEGER NOT NULL,\n  amount NUMERIC NOT NULL,\n  method TEXT NOT NULL CHECK (method IN ('cash','card','venmo','bank transfer','other')),\n  paid_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),\n  foreign key (invoice_id) references invoice(id)\n);\n What students are enrolled but do not have phone numbers yet?\n\nSELECT s.name, s.email, s.skill_level\nFROM student s\nWHERE s.phone IS NULL;\n Which packages are about to expire in the next 30 days?\n\nSELECT sp.id, s.name, sp.expires_at, p.name AS package_name\nFROM student_package sp\nJOIN student s ON sp.student_id = s.id\nJOIN package p ON sp.package_id = p.id\nWHERE sp.expires_at BETWEEN date('now') AND date('now', '+30 days');\n  Give me a sqlite select statement that answers the question using the guitar teacher schema. Only respond with sqlite syntax. If there is an error do not explain it!",
+  "questionResults": [
+    {
+      "question": "Which students have lessons scheduled in the next 7 days?",
+      "sql": "SELECT s.name, s.email\nFROM student s\nJOIN lesson l ON s.id = l.student_id\nWHERE l.scheduled_at BETWEEN datetime('now') AND datetime('now', '+7 days')\n  AND l.status = 'scheduled';",
+      "queryRawResponse": "[('Maya Chen', 'maya.chen@example.com'), (\"Sam O'Connor\", 'sam.oconnor@example.com'), (\"Sam O'Connor\", 'sam.oconnor@example.com'), ('Maya Chen', 'maya.chen2@example.com'), (\"Sam O'Connor\", 'sam.oconnor@example.com')]",
+      "friendlyResponse": "The students who have lessons scheduled in the next 7 days are Maya Chen and Sam O'Connor.",
+      "error": "None"
+    },
+    {
+      "question": "Which students have unpaid invoices and how much is outstanding for each?",
+      "sql": "SELECT s.name, SUM(i.amount) AS total_outstanding\nFROM student s\nJOIN invoice i ON s.id = i.student_id\nWHERE i.status = 'unpaid'\nGROUP BY s.id;",
+      "queryRawResponse": "[('Jonah Reed', 160), ('Alex Kim', 200), ('Maya Chen', 120)]",
+      "friendlyResponse": "Here are the students with unpaid invoices and their outstanding amounts: Jonah Reed has $160 outstanding, Alex Kim has $200 outstanding, and Maya Chen has $120 outstanding.",
+      "error": "None"
+    },
+    {
+      "question": "Who is missing a phone number in their profile?",
+      "sql": "SELECT name, email\nFROM student\nWHERE phone IS NULL\nUNION\nSELECT name, email\nFROM teacher\nWHERE phone IS NULL;",
+      "queryRawResponse": "[('Alex Kim', 'alex.kim@example.com')]",
+      "friendlyResponse": "The person missing a phone number in their profile is Alex Kim, who can be reached at alex.kim@example.com.",
+      "error": "None"
+    },
+    {
+      "question": "What lessons in the last month were marked as no-show?",
+      "sql": "SELECT l.id, l.teacher_id, l.student_id, l.scheduled_at\nFROM lesson l\nWHERE l.status = 'no-show'\nAND l.scheduled_at BETWEEN date('now', '-1 month') AND date('now');",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "It looks like there were no lessons marked as no-show in the last month.",
+      "error": "None"
+    },
+    {
+      "question": "Which students have overlapping lessons?",
+      "sql": "SELECT s.name, l1.scheduled_at AS lesson_1_time, l2.scheduled_at AS lesson_2_time\nFROM lesson l1\nJOIN lesson l2 ON l1.student_id = l2.student_id\nJOIN student s ON l1.student_id = s.id\nWHERE l1.id <> l2.id\nAND l1.scheduled_at < l2.scheduled_at + (l2.duration_minutes * 60)\nAND l2.scheduled_at < l1.scheduled_at + (l1.duration_minutes * 60);",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "It looks like no students currently have overlapping lessons based on your query.",
+      "error": "None"
+    },
+    {
+      "question": "For each teacher, list their top 2 students by number of completed lessons and the teacher's average duration for completed lessons.",
+      "sql": "SELECT t.id AS teacher_id, t.name AS teacher_name, s.id AS student_id, s.name AS student_name, COUNT(l.id) AS completed_lessons_count,\n       (SELECT AVG(l2.duration_minutes)\n        FROM lesson l2\n        WHERE l2.teacher_id = t.id AND l2.status = 'completed') AS avg_completed_lesson_duration\nFROM lesson l\nJOIN teacher t ON l.teacher_id = t.id\nJOIN student s ON l.student_id = s.id\nWHERE l.status = 'completed'\nGROUP BY t.id, s.id\nORDER BY t.id, completed_lessons_count DESC\nLIMIT 2;",
+      "queryRawResponse": "[(1, 'Ava Marshall', 7, 'Alex Kim', 1, 55.0), (1, 'Ava Marshall', 2, 'Elijah Torres', 1, 55.0)]",
+      "friendlyResponse": "Your SQL query successfully returned the top 2 students for each teacher based on the number of completed lessons, along with the average duration of completed lessons for the teacher. Here's the data for teacher Ava Marshall:\n\n- **Teacher:** Ava Marshall\n  - **Top Student 1:** Alex Kim with 1 completed lesson\n  - **Top Student 2:** Elijah Torres with 1 completed lesson\n  - **Average Duration of Completed Lessons:** 55 minutes\n\nIf you need further details or adjustments, feel free to ask!",
+      "error": "None"
+    },
+    {
+      "question": "Which students have packages that will expire within the next 7 days and also have unpaid invoices?",
+      "sql": "SELECT s.name, s.email, sp.expires_at, i.id AS invoice_id\nFROM student s\nJOIN student_package sp ON s.id = sp.student_id\nJOIN invoice i ON s.id = i.student_id\nWHERE sp.expires_at BETWEEN date('now') AND date('now', '+7 days')\nAND i.status = 'unpaid';",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "No students currently have packages that will expire within the next 7 days and also have unpaid invoices.",
+      "error": "None"
+    },
+    {
+      "question": "Which invoices have partial payments?",
+      "sql": "SELECT i.id, i.amount, SUM(p.amount) AS total_paid\nFROM invoice i\nJOIN payment p ON i.id = p.invoice_id\nGROUP BY i.id, i.amount\nHAVING SUM(p.amount) < i.amount;",
+      "queryRawResponse": "[(4, 160, 0), (6, 200, 125)]",
+      "friendlyResponse": "The invoices with partial payments are:\n\n- Invoice ID 4: Total amount due is 160, but there have been no payments made yet.\n- Invoice ID 6: Total amount due is 200, with 125 paid so far.",
+      "error": "None"
+    },
+    {
+      "question": "List students whose no-show rate is greater than 25%.",
+      "sql": "SELECT s.name, \n       s.email, \n       (CAST(SUM(CASE WHEN l.status = 'no-show' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(l.id)) * 100 AS no_show_rate\nFROM student s\nJOIN lesson l ON s.id = l.student_id\nGROUP BY s.id\nHAVING no_show_rate > 25;",
+      "queryRawResponse": "[('Kai Barnes', 'kai.barnes@example.com', 100.0)]",
+      "friendlyResponse": "The student with a no-show rate greater than 25% is Kai Barnes, with a no-show rate of 100%.",
+      "error": "None"
+    }
+  ]
+}

@@ -7,3 +7,5 @@ __pycache__/
 *$py.class
 
 aidb.sqlite
+
+.DS_Store
