@@ -1,4 +1,4 @@
--- Dummy data for guitar teacher schema
+-- Dummy data for guitar teacher schema (SQLite-compatible inserts)
 
 insert into teacher (name, email, phone) values
   ('Ava Marshall', 'ava@guitarflow.com', '303-555-0101'),
